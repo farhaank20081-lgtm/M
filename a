@@ -31,7 +31,7 @@ local State = {
         Name = true,
         Health = true,
         Distance = true,
-        Range = 2500,
+        Range = 1000,
         Color = Color3.fromRGB(255, 170, 60),
         Thickness = 2,
         TeamColor = false,
@@ -492,7 +492,7 @@ do
         State.ESP.ShowLookLine = v 
     end)
     y = y + 48
-    makeSlider(espPage, y, "Max Range (studs)", 50, 2500, State.ESP.Range, function(v) 
+    makeSlider(espPage, y, "Max Range (studs)", 50, 2000, State.ESP.Range, function(v) 
         State.ESP.Range = math.floor(v) 
     end)
     y = y + 36
@@ -900,22 +900,46 @@ local function onCharacterRemoving(character)
     cleanupESP(character)
 end
 
--- Initialize for existing players
+-- Initialize for existing players (players + non-player models with HumanoidRootPart)
 for _, player in ipairs(Players:GetPlayers()) do
     if player ~= LocalPlayer then
         State.TrackedPlayers[player] = true
-        
+
         if player.Character then
             coroutine.wrap(onCharacterAdded)(player.Character, player)
         end
-        
+
         player.CharacterAdded:Connect(function(char)
             onCharacterAdded(char, player)
         end)
-        
+
         player.CharacterRemoving:Connect(onCharacterRemoving)
     end
 end
+
+-- Scan workspace for existing non-player models that have a HumanoidRootPart (NPCs)
+for _, obj in ipairs(workspace:GetDescendants()) do
+    if obj:IsA("Model") and obj:FindFirstChild("HumanoidRootPart") and not Players:GetPlayerFromCharacter(obj) then
+        if not State.TrackedCharacters[obj] then
+            local stub = { Name = obj.Name }
+            createVisualForCharacter(obj, stub)
+            State.TrackedPlayers[stub] = true
+        end
+    end
+end
+
+-- Listen for new non-player models added later and add ESP for them
+workspace.DescendantAdded:Connect(function(desc)
+    if desc:IsA("Model") and desc:FindFirstChild("HumanoidRootPart") and not Players:GetPlayerFromCharacter(desc) then
+        task.wait(0.1) -- allow model to initialize
+        if not State.TrackedCharacters[desc] then
+            local stub = { Name = desc.Name }
+            createVisualForCharacter(desc, stub)
+            State.TrackedPlayers[stub] = true
+        end
+    end
+end)
+
 
 -- Handle new players
 Players.PlayerAdded:Connect(function(player)
